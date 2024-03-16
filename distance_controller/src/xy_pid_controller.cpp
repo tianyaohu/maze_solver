@@ -1,6 +1,7 @@
 #include "geometry_msgs/msg/detail/twist__struct.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "rclcpp/exceptions/exceptions.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/utilities.hpp"
 #include <armadillo>
@@ -65,11 +66,10 @@ public:
       errorIndex = (errorIndex + 1) % bufferSize;
 
       // GOAL REACH CONDITION:
-      // Check if goal is reached by ensuring all error values in the buffer are
-      // below the threshold
+      // (1) all error values in the buffer are below the threshold
       bool all_within_thresh =
-          arma::all(arma::vectorise(arma::abs(errorBuffer)) < THRESH);
-      // check the max difference within buffer
+          arma::all(arma::vectorise(arma::abs(errorBuffer.row(0))) < THRESH);
+      // (2) check the max difference within buffer
       arma::vec minVec =
           arma::min(errorBuffer, 1); // 1 for column-wise operation
       arma::vec maxVec =
@@ -79,6 +79,12 @@ public:
       bool sq_error_within_thresh =
           arma::all(arma::vectorise(arma::abs(squaredError)) < THRESH);
 
+      //   cout << "minVec is " << minVec << endl;
+      //   cout << "maxVec is " << maxVec << endl;
+      cout << "squaredError is " << squaredError << endl;
+      cout << "sq_error_within_thresh is " << sq_error_within_thresh << endl;
+      cout << "all_within_thresh is " << all_within_thresh << endl;
+
       //   goalReached = arma::all(arma::vectorise(arma::abs(errorBuffer)) <
       //   THRESH);
       goalReached = all_within_thresh && sq_error_within_thresh;
@@ -87,17 +93,23 @@ public:
       arma::vec speeds = xy_pid.computeOutput(error);
       this->publishSpeeds(speeds);
 
-      //
       rate.sleep();
 
     } while (rclcpp::ok() && !goalReached);
 
+    // stop after reaching goal
+    stop();
+
+    rclcpp::sleep_for(2s);
+    // process odoms
+    rclcpp::spin_some(shared_from_this());
+
+    // get current pos and error
+    cur_pos = {cur_x, cur_y};
+
     // final pos after movement
     cout << "final arrival pos is " << cur_pos << endl;
     cout << "error for the final pos is " << error << endl;
-
-    // stop after reaching goal
-    stop();
   }
 
 private:
@@ -151,10 +163,14 @@ private:
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  // pid's kp, ki, kd
-  double kp = 40;
-  double ki = 0;
-  double kd = 0.;
+  // ku here tested is with controller set at 30hz
+  double ku = 15, tu = 8.50; // tu is in seconds
+  // set kp, ki, kd
+  double kp = 0.125 * ku;
+  double ki = 0.001 * kp / (0.5 * tu);
+  double kd = 0.075 * ku * tu; // starting from 0.125
+
+  //   double kd = 0.075 * ku * tu;
 
   cout << "kp is" << kp << endl;
   cout << "ki is" << ki << endl;
