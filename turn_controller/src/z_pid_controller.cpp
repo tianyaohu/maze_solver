@@ -157,18 +157,27 @@ int main(int argc, char *argv[]) {
   // ku here tested is with controller set at 30hz
   double ku = 15, tu = 8.50; // tu is in seconds
   // set kp, ki, kd
-  double kp = 0.155 * ku;
-  double ki = 0;
-  //   double ki = 0.001 * kp / (0.5 * tu);
+  double kp = 0.15 * ku;
+  double ki = 0.005 * kp / (0.5 * tu);
   // double kd = 0.1 * ku * tu; // starting from 0.125
-  double kd = 0.1 * ku * tu; // starting from 0.125
+  double kd = 0.125 * ku * tu; // starting from 0.125
 
   // init controller
   std::shared_ptr<AngleController> node =
       std::make_shared<AngleController>(kp, ki, kd);
 
   // init way points
-  arma::mat W = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+  arma::mat W = {{-1, 0},
+                 {
+                     0.5,
+                     -0.86,
+                 },
+                 {3.1392, -0.2167},
+                 {
+                     0.7,
+                     0.8827,
+                 }}; //-90 180 90 degrees
+  //   arma::mat W = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}}; //-90 180 90 degrees
 
   // ensure there is odom to work with
   rclcpp::sleep_for(100ms);
@@ -179,8 +188,7 @@ int main(int argc, char *argv[]) {
     cout << "Moving Towards " << way_pt << endl;
     node->turn_towards_xy(way_pt.t());
     // after finishing moving to waypoint, move back to origin
-    cout << "Moving Towards (0,0) " << W.row(0) << endl;
-    node->turn_towards_xy(W.row(0).t());
+    // node->turn_towards_xy(W.row(0).t());
   });
 
   rclcpp::shutdown();
