@@ -1,4 +1,3 @@
-#include "geometry_msgs/msg/detail/twist__struct.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/exceptions/exceptions.hpp"
@@ -6,7 +5,6 @@
 #include "rclcpp/utilities.hpp"
 #include <armadillo>
 #include <cmath>
-#include <std_msgs/msg/float32_multi_array.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <vector>
@@ -33,15 +31,14 @@ public:
                   std::placeholders::_1));
   }
 
-  void turn_to_z_goal(double goal) {
-    // threshold between goal and error
+  void turn_towards_xy(arma::vec goal) {
+    // threshold between goal
     const double THRESH = 0.05;
-    double error, speed;
+    double error;
 
-    // Initialize error matrix with 1 rows (for theta errors)
+    // Initialize error matrix with 2 rows (for x and y errors) and bufferSize
     const size_t bufferSize = 10;
     arma::mat errorBuffer(1, bufferSize, arma::fill::zeros); // Start with zeros
-    size_t errorIndex = 0; // To track the insertion point for new errors
 
     // init loop rate and goal reach flag
     rclcpp::Rate rate(30); // this affects control behavior
@@ -50,12 +47,15 @@ public:
     // reset pid to clear prev_time
     z_pid.reset();
 
+    size_t errorIndex = 0; // To track the insertion point for new errors
+
     do {
       // process odoms
       rclcpp::spin_some(shared_from_this());
 
-      // get current pos and error
-      error = normalize(normalize(goal) - cur_theta);
+      // calc error
+      double goal_theta = atan2(goal(1) - cur_y, goal(0) - cur_x);
+      error = normalize(goal_theta - cur_theta);
 
       // Insert new error into the matrix at the current index, rolling if
       // necessary
@@ -76,22 +76,13 @@ public:
       bool sq_error_within_thresh =
           arma::all(arma::vectorise(arma::abs(squaredError)) < THRESH);
 
-      //   cout << "minVec is " << minVec << endl;
-      //   cout << "maxVec is " << maxVec << endl;
-      //   cout << "squaredError is " << squaredError << endl;
-      //   cout << "sq_error_within_thresh is " << sq_error_within_thresh <<
-      //   endl; cout << "all_within_thresh is " << all_within_thresh << endl;
-
-      //   goalReached = arma::all(arma::vectorise(arma::abs(errorBuffer)) <
-      //   THRESH);
+      // check if goal is reached
       goalReached = all_within_thresh && sq_error_within_thresh;
 
-      // calc and publish speed
-      speed = z_pid.computeOutput(error);
-      this->publishTurnSpeed(speed);
+      // calc and publish speeds
+      this->publishTurnSpeed(z_pid.computeOutput(error));
 
       rate.sleep();
-
     } while (rclcpp::ok() && !goalReached);
 
     // stop after reaching goal
@@ -102,8 +93,8 @@ public:
     rclcpp::spin_some(shared_from_this());
 
     // final pos after movement
-    cout << "final arrival angle is " << cur_theta << endl;
-    cout << "error for the final pos is " << goal - cur_theta << endl;
+    cout << "final arrival pos is " << cur_x << " y is " << cur_y << endl;
+    cout << "error for the final pos is " << error << endl;
   }
 
 private:
@@ -166,29 +157,31 @@ int main(int argc, char *argv[]) {
   // ku here tested is with controller set at 30hz
   double ku = 15, tu = 8.50; // tu is in seconds
   // set kp, ki, kd
-  double kp = 0.145 * ku;
+  double kp = 0.155 * ku;
   double ki = 0;
   //   double ki = 0.001 * kp / (0.5 * tu);
+  // double kd = 0.1 * ku * tu; // starting from 0.125
   double kd = 0.1 * ku * tu; // starting from 0.125
 
+  // init controller
   std::shared_ptr<AngleController> node =
       std::make_shared<AngleController>(kp, ki, kd);
 
-  int n = 3;         // vector length
-  double start = 0;  // first element
-  double end = M_PI; // last element
+  // init way points
+  arma::mat W = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
 
-  arma::vec W = arma::linspace<arma::vec>(start, end, n);
+  // ensure there is odom to work with
+  rclcpp::sleep_for(100ms);
+  rclcpp::spin_some(node);
 
-  W.print("Show All Goals");
   // loop to move through all the way points
-
-  for (double &goal_angle : W) {
-    cout << "Turn Towards " << goal_angle << endl;
-    node->turn_to_z_goal(goal_angle);
+  W.each_row([&](arma::rowvec &way_pt) {
+    cout << "Moving Towards " << way_pt << endl;
+    node->turn_towards_xy(way_pt.t());
     // after finishing moving to waypoint, move back to origin
-    node->turn_to_z_goal(0);
-  }
+    cout << "Moving Towards (0,0) " << W.row(0) << endl;
+    node->turn_towards_xy(W.row(0).t());
+  });
 
   rclcpp::shutdown();
   return 0;
