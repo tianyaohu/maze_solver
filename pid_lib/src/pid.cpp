@@ -58,3 +58,4 @@ template <> void PID<double>::reset() {
 }
 
 template class PID<arma::vec>;
+template class PID<double>;
