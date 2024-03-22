@@ -17,10 +17,43 @@ using namespace std::chrono_literals;
 class AngleController : public rclcpp::Node {
 public:
   //   AngleController(double wb, double wd, double tw)
-  AngleController(double kp, double ki, double kd)
-      : Node("eight_trajectory") //{
-        ,
-        z_pid(kp, ki, kd) {
+  AngleController() : Node("angle_controller") {
+    int scene_num;
+
+    // Declare the parameter with a default value, in case it's not set
+    this->declare_parameter<int>("scene_num", 0); // 0 is simulation
+
+    // print to see if parameter Setting workedf
+    this->get_parameter("scene_num", scene_num);
+    RCLCPP_INFO(this->get_logger(), "scene_num is: %d", scene_num);
+
+    double ku, tu;
+    double kp, ki, kd;
+    // switch between scene based on num
+    switch (scene_num) {
+    case 0: // Simulation
+      // init pid for Simulation
+      ku = 15, tu = 8.5;
+
+      kp = 0.15 * ku;
+      ki = 0.005 * kp / (0.5 * tu);
+      kd = 0.125 * ku * tu;
+      break;
+    // CyberWorld the construct
+    case 1:
+      ku = 5, tu = 3.50; // tu is in seconds
+
+      kp = 0.27 * ku; // 0.15 is perfect turn in the real robot
+      ki = 0.005 * kp / (0.5 * tu);
+      kd = 0.018 * ku * tu; // starting from 0.125
+      break;
+    default:
+      RCLCPP_ERROR(this->get_logger(), "Invalid scene number: %d", scene_num);
+      return;
+    }
+
+    //  Init z_pid
+    z_pid = std::make_unique<PID<double>>(kp, ki, kd);
 
     // init publishers and subscribers
     wheel_speed_pub_ =
@@ -35,6 +68,8 @@ public:
     // threshold between goal
     const double THRESH = 0.05;
     double error;
+    double goal_theta = atan2(goal(1) - cur_y, goal(0) - cur_x);
+    cout << "goal theta is " << goal_theta << endl;
 
     // Initialize error matrix with 2 rows (for x and y errors) and bufferSize
     const size_t bufferSize = 10;
@@ -45,7 +80,7 @@ public:
     bool goalReached = false;
 
     // reset pid to clear prev_time
-    z_pid.reset();
+    z_pid->reset();
 
     size_t errorIndex = 0; // To track the insertion point for new errors
 
@@ -54,7 +89,6 @@ public:
       rclcpp::spin_some(shared_from_this());
 
       // calc error
-      double goal_theta = atan2(goal(1) - cur_y, goal(0) - cur_x);
       error = normalize(goal_theta - cur_theta);
 
       // Insert new error into the matrix at the current index, rolling if
@@ -80,7 +114,7 @@ public:
       goalReached = all_within_thresh && sq_error_within_thresh;
 
       // calc and publish speeds
-      this->publishTurnSpeed(z_pid.computeOutput(error));
+      this->publishTurnSpeed(z_pid->computeOutput(error));
 
       rate.sleep();
     } while (rclcpp::ok() && !goalReached);
@@ -93,7 +127,7 @@ public:
     rclcpp::spin_some(shared_from_this());
 
     // final pos after movement
-    cout << "final arrival pos is " << cur_x << " y is " << cur_y << endl;
+    cout << "final theta is " << cur_theta << endl;
     cout << "error for the final pos is " << error << endl;
   }
 
@@ -143,7 +177,7 @@ private:
 
   double cur_x, cur_y, cur_theta;
 
-  PID<double> z_pid;
+  std::unique_ptr<PID<double>> z_pid;
 
   // robot physical info
   double wheel_base;
@@ -154,30 +188,21 @@ private:
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  // ku here tested is with controller set at 30hz
-  double ku = 15, tu = 8.50; // tu is in seconds
-  // set kp, ki, kd
-  double kp = 0.15 * ku;
-  double ki = 0.005 * kp / (0.5 * tu);
-  // double kd = 0.1 * ku * tu; // starting from 0.125
-  double kd = 0.125 * ku * tu; // starting from 0.125
-
   // init controller
-  std::shared_ptr<AngleController> node =
-      std::make_shared<AngleController>(kp, ki, kd);
+  std::shared_ptr<AngleController> node = std::make_shared<AngleController>();
 
   // init way points
-  arma::mat W = {{-1, 0},
-                 {
-                     0.5,
-                     -0.86,
-                 },
-                 {3.1392, -0.2167},
-                 {
-                     0.7,
-                     0.8827,
-                 }}; //-90 180 90 degrees
-  //   arma::mat W = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}}; //-90 180 90 degrees
+  //   arma::mat W = {{-1, 0},
+  //                  {
+  //                      0.5,
+  //                      -0.86,
+  //                  },
+  //                  {3.1392, -0.2167},
+  //                  {
+  //                      0.7,
+  //                      0.8827,
+  //                  }}; //-90 180 90 degrees
+  arma::mat W = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}}; //-90 180 90 degrees
 
   // ensure there is odom to work with
   rclcpp::sleep_for(100ms);
@@ -187,8 +212,10 @@ int main(int argc, char *argv[]) {
   W.each_row([&](arma::rowvec &way_pt) {
     cout << "Moving Towards " << way_pt << endl;
     node->turn_towards_xy(way_pt.t());
+
+    cout << "Moving back to first way pt " << way_pt << endl;
     // after finishing moving to waypoint, move back to origin
-    // node->turn_towards_xy(W.row(0).t());
+    node->turn_towards_xy(W.row(0).t());
   });
 
   rclcpp::shutdown();

@@ -5,6 +5,7 @@
 #include "rclcpp/utilities.hpp"
 #include <armadillo>
 #include <cmath>
+#include <memory>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <vector>
@@ -17,10 +18,45 @@ using namespace std::chrono_literals;
 class DistanceController : public rclcpp::Node {
 public:
   //   DistanceController(double wb, double wd, double tw)
-  DistanceController(double kp, double ki, double kd)
-      : Node("eight_trajectory") //{
-        ,
-        xy_pid(kp, ki, kd, 2) {
+  DistanceController() : Node("distance_controller") {
+
+    int scene_num;
+
+    // Declare the parameter with a default value, in case it's not set
+    this->declare_parameter<int>("scene_num", 0); // 0 is simulation
+
+    // print to see if parameter Setting workedf
+    this->get_parameter("scene_num", scene_num);
+    RCLCPP_INFO(this->get_logger(), "scene_num is: %d", scene_num);
+
+    double ku, tu;
+    double kp, ki, kd;
+    // switch between scene based on num
+    switch (scene_num) {
+    case 0:               // Simulation
+                          // ku here tested is with controller set at 30hz
+      ku = 15, tu = 8.50; // tu is in seconds
+                          // set kp, ki, kd
+      kp = 0.125 * ku;
+      ki = 0.001 * kp / (0.5 * tu);
+      kd = 0.075 * ku * tu;
+      break;
+    // CyberWorld the construct
+    case 1:
+      // THE FOLLOWING ARE LEGACY OF Z_CONTROLLER
+      ku = 5, tu = 3; // tu is in seconds
+
+      kp = 0.1 * ku; // 0.15 is perfect turn in the real robot
+      ki = 0.0;      // 05 * kp / (0.5 * tu);
+      kd = 0.0;      // 18 * ku * tu; // starting from 0.125
+      break;
+    default:
+      RCLCPP_ERROR(this->get_logger(), "Invalid scene number: %d", scene_num);
+      return;
+    }
+
+    //  Init z_pid
+    xy_pid = std::make_unique<PID<arma::vec>>(kp, ki, kd, 2);
 
     // init publishers and subscribers
     wheel_speed_pub_ =
@@ -46,7 +82,7 @@ public:
     bool goalReached = false;
 
     // reset pid to clear prev_time
-    xy_pid.reset();
+    xy_pid->reset();
 
     size_t errorIndex = 0; // To track the insertion point for new errors
 
@@ -79,16 +115,16 @@ public:
 
       //   cout << "minVec is " << minVec << endl;
       //   cout << "maxVec is " << maxVec << endl;
-      cout << "squaredError is " << squaredError << endl;
-      cout << "sq_error_within_thresh is " << sq_error_within_thresh << endl;
-      cout << "all_within_thresh is " << all_within_thresh << endl;
+      //   cout << "squaredError is " << squaredError << endl;
+      //   cout << "sq_error_within_thresh is " << sq_error_within_thresh <<
+      //   endl; cout << "all_within_thresh is " << all_within_thresh << endl;
 
       //   goalReached = arma::all(arma::vectorise(arma::abs(errorBuffer)) <
       //   THRESH);
       goalReached = all_within_thresh && sq_error_within_thresh;
 
       // calc and publish speeds
-      arma::vec speeds = xy_pid.computeOutput(error);
+      arma::vec speeds = xy_pid->computeOutput(error);
       this->publishSpeeds(speeds);
 
       rate.sleep();
@@ -122,7 +158,10 @@ private:
     geometry_msgs::msg::Twist msg;
     // msg.angular.z = speeds(0);
     msg.linear.x = speeds(0);
-    msg.linear.y = speeds(1);
+    msg.linear.y = 0.2 * speeds(1);
+
+    speeds.print("speed is ");
+
     // pub to cmd_vel
     wheel_speed_pub_->publish(msg);
   }
@@ -150,7 +189,7 @@ private:
 
   double cur_x, cur_y, cur_theta;
 
-  PID<arma::vec> xy_pid;
+  std::unique_ptr<PID<arma::vec>> xy_pid;
 
   // robot physical info
   double wheel_base;
@@ -161,33 +200,21 @@ private:
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
-  // ku here tested is with controller set at 30hz
-  double ku = 15, tu = 8.50; // tu is in seconds
-  // set kp, ki, kd
-  double kp = 0.125 * ku;
-  double ki = 0.001 * kp / (0.5 * tu);
-  double kd = 0.075 * ku * tu; // starting from 0.125
-
-  //   double kd = 0.075 * ku * tu;
-
-  cout << "kp is" << kp << endl;
-  cout << "ki is" << ki << endl;
-  cout << "kd is" << kd << endl;
-
   std::shared_ptr<DistanceController> node =
-      std::make_shared<DistanceController>(kp, ki, kd);
+      std::make_shared<DistanceController>();
 
-  arma::mat W = {{1, 0}, {2, 0}, {3, 0}, {4, 0}};
+  //   arma::mat W = {{1, 0}, {2, 0}}; //{3, 0}, {4, 0}};
+  arma::mat W = {{-0.5, 0}, {0, 0}, {0.5, 0}, {1, 0}, {1.5, 0}};
 
   // loop to move through all the way points
   W.each_row([&](arma::rowvec &way_pt) {
     cout << "Moving Towards " << way_pt << endl;
     node->move_to_xy_goal(way_pt.t());
     // after finishing moving to waypoint, move back to origin
-    node->move_to_xy_goal(arma::zeros(2));
+    node->move_to_xy_goal(arma::vec({-0.5, 0}));
   });
 
-  //   rclcpp::spin(node);
+  rclcpp::spin(node);
 
   rclcpp::shutdown();
   return 0;
