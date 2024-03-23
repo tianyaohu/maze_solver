@@ -18,7 +18,6 @@ class AngleController : public rclcpp::Node {
 public:
   //   AngleController(double wb, double wd, double tw)
   AngleController() : Node("angle_controller") {
-
     int scene_num;
 
     // Declare the parameter with a default value, in case it's not set
