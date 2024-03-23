@@ -67,10 +67,21 @@ public:
                   std::placeholders::_1));
   }
 
-  void move_to_xy_goal(arma::vec goal) {
-    // threshold between goal and cur_pos
+  void move_xy_dist(arma::vec delta_xy) {
+
+    //############### START OF TEMP ###################
+    rclcpp::sleep_for(2s);
+    // process odoms
+    rclcpp::spin_some(shared_from_this());
+    //############### END OF TEMP ###################
+    // init cur_pos
+    arma::vec cur_pos = {cur_x, cur_y};
+
+    // init error and goal
+    arma::vec error, goal = cur_pos + delta_xy;
+
+    // init thresh hold
     const double THRESH = 0.05;
-    arma::vec error, cur_pos;
 
     // Initialize error matrix with 2 rows (for x and y errors) and bufferSize
     // columns
@@ -102,7 +113,10 @@ public:
       // GOAL REACH CONDITION:
       // (1) all error values in the buffer are below the threshold
       bool all_within_thresh =
-          arma::all(arma::vectorise(arma::abs(errorBuffer.row(0))) < THRESH);
+          //   arma::all(arma::vectorise(arma::abs(errorBuffer.row(0))) <
+          //   THRESH);
+          arma::all(arma::vectorise(arma::abs(errorBuffer)) < THRESH);
+
       // (2) check the max difference within buffer
       arma::vec minVec =
           arma::min(errorBuffer, 1); // 1 for column-wise operation
@@ -142,8 +156,8 @@ public:
     cur_pos = {cur_x, cur_y};
 
     // final pos after movement
-    cout << "final arrival pos is " << cur_pos << endl;
-    cout << "error for the final pos is " << error << endl;
+    cur_pos.print("final arrival pos is ");
+    error.print("error for the final pos is ");
   }
 
 private:
@@ -158,9 +172,9 @@ private:
     geometry_msgs::msg::Twist msg;
     // msg.angular.z = speeds(0);
     msg.linear.x = speeds(0);
-    msg.linear.y = 0.2 * speeds(1);
+    msg.linear.y = speeds(1);
 
-    speeds.print("speed is ");
+    // speeds.print("speed is ");
 
     // pub to cmd_vel
     wheel_speed_pub_->publish(msg);
@@ -204,14 +218,15 @@ int main(int argc, char *argv[]) {
       std::make_shared<DistanceController>();
 
   //   arma::mat W = {{1, 0}, {2, 0}}; //{3, 0}, {4, 0}};
-  arma::mat W = {{-0.5, 0}, {0, 0}, {0.5, 0}, {1, 0}, {1.5, 0}};
+  //   arma::mat W = {{0.5, 0}, {1, 0}, {1.5, 0}};
+  arma::mat W = {{0, 0.5}, {0, 1}, {0, 1.5}, {0, 3}, {-1, -1}};
 
   // loop to move through all the way points
   W.each_row([&](arma::rowvec &way_pt) {
     cout << "Moving Towards " << way_pt << endl;
-    node->move_to_xy_goal(way_pt.t());
+    node->move_xy_dist(way_pt.t());
     // after finishing moving to waypoint, move back to origin
-    node->move_to_xy_goal(arma::vec({-0.5, 0}));
+    node->move_xy_dist(-way_pt.t());
   });
 
   rclcpp::spin(node);
