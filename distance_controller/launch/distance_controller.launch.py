@@ -14,8 +14,8 @@ def generate_launch_description():
 
         Node(
             package='distance_controller',
-            executable='xy_control_node',
-            name='xy_control_node',
+            executable='distance_controller_node',
+            name='distance_controller_node',
             output='screen',
             parameters=[{'scene_num': LaunchConfiguration("scene_num")}])
     ])

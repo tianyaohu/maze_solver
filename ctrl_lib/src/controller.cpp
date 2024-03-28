@@ -101,7 +101,7 @@ void Controller::setDistPID(int scene_num) {
 // ########## GET STATE INFO ##############
 inline arma::vec Controller::getCurXY() { return arma::vec({cur_x, cur_y}); }
 
-// ################ Calc Errors ##################
+// ################ Calc Turn Errors ##################
 inline double Controller::normalize(double angle) {
   // Function definition here
   // Example implementation:
@@ -116,20 +116,53 @@ double Controller::calcTurnError(double abs_goal) {
   return normalize(abs_goal - cur_theta);
 }
 
-arma::vec Controller::calcMoveError(arma::vec abs_goal) {
-  (void)abs_goal;
-  return abs_goal - getCurXY();
-}
-
-// ################## Calc Speed ##################
 arma::vec Controller::calcTurnSpeed(double error) {
   return arma::vec({0, 0, turn_pid->computeOutput(error)});
 }
 
+// ################ Calc Turn Errors ##################
+
+arma::vec Controller::calcMoveError(arma::vec abs_goal) {
+  return abs_goal - getCurXY();
+}
+
 arma::vec Controller::calcMoveSpeed(arma::vec error) {
-  (void)error;
-  // check the angle between target and facing direction
-  return arma::zeros<arma::vec>(3);
+  double theta_error = atan2(error(1), error(0)) - cur_theta;
+
+  // Decide go forward or backward based on theta_error, aka if robot's head is
+  // more facing the goal or tail
+  bool go_backward = fabs(theta_error) > M_PI / 2;
+
+  // Adjust theta_error for backward movement
+  if (go_backward) {
+    // If we are going backward, adjust the direction of movement
+    if (theta_error > 0) {
+      theta_error = theta_error - M_PI;
+    } else {
+      theta_error = theta_error + M_PI;
+    }
+  }
+
+  // calc speed
+  double forward_speed = dist_pid->computeOutput(arma::norm(error));
+  double turn_speed = turn_pid->computeOutput(theta_error);
+
+  // If going backward, reverse the forward speed
+  if (go_backward) {
+    forward_speed = -forward_speed;
+  }
+
+  // To combat the challenge of moving through a narrow corridor, here we are
+  // limiting forward speed based on theta error
+  //  (1) as theta error approach 0, y approaches 1, aka go straight ahead
+  // as abs(theta_error) gets greater, y approaches 0, aka first turn, before
+  // moving forward
+  auto y = [](double x) -> double {
+    // here y should be 1-abs(2/(1+e^-5x)-1)
+    return 1 - std::abs(2.0 / (1.0 + std::exp(-5.0 * x)) - 1.0);
+  };
+
+  return arma::vec({y(theta_error) * forward_speed, 0, turn_speed});
 }
 
 // ################### Optimization functions ###############
@@ -138,7 +171,7 @@ void Controller::moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
                                      CommandFunc calc_speed) {
 
   //############### START OF TEMP ###################
-  rclcpp::sleep_for(2s);
+  rclcpp::sleep_for(200ms);
   // process odoms
   rclcpp::spin_some(shared_from_this());
   //############### END OF TEMP ###################
@@ -234,7 +267,7 @@ void Controller::moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
 }
 
 // User Functions For movements
-void Controller::makeDeltaTurn(double &delta) {
+void Controller::makeDeltaTurn(const double &delta) {
   double abs_goal = normalize(delta + cur_theta);
   cout << "abs_goal is " << abs_goal << endl;
   moveToMinimizeError(
@@ -243,8 +276,10 @@ void Controller::makeDeltaTurn(double &delta) {
       std::bind(&Controller::calcTurnSpeed, this, std::placeholders::_1));
 }
 
-void Controller::makeDeltaMove(arma::vec &delta) {
-  arma::vec abs_goal = delta + getCurXY();
+void Controller::makeAbsMove(const arma::vec &delta) {
+  arma::vec abs_goal = delta;
+  //   arma::vec abs_goal = delta + getCurXY();
+
   cout << "abs_goal is " << abs_goal << endl;
   // Use std::bind to bind this pointer for the member function calcMoveError
   moveToMinimizeError(

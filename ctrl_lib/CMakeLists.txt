@@ -20,6 +20,7 @@ include_directories(include)
 # define ctrl_lib library
 set(HEADER_FILES include/ctrl_lib/controller.hpp)
 add_library(ctrl_lib SHARED src/controller.cpp ${HEADER_FILES})
+target_link_libraries(ctrl_lib armadillo) 
 ament_target_dependencies(ctrl_lib
 	rclcpp
   geometry_msgs

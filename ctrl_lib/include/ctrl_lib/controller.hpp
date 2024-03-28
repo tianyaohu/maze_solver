@@ -20,8 +20,8 @@ public:
   bool moveForXY(double x, double y);
   //   bool turnForDegrees(double degree);
 
-  void makeDeltaTurn(double &delta);
-  void makeDeltaMove(arma::vec &delta);
+  void makeDeltaTurn(const double &delta);
+  void makeAbsMove(const arma::vec &delta);
 
 private:
   string topic_vel_;

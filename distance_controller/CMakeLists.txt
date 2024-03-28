@@ -8,11 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(pid_lib REQUIRED)
-find_package(tf2 REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
+find_package(ctrl_lib REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -29,22 +25,19 @@ endif()
 include_directories(PUBLIC include)
 
 ########### START of xy_controller ###########
-add_executable(xy_control_node
-    src/xy_pid_controller.cpp)
-target_link_libraries(xy_control_node armadillo) 
-ament_target_dependencies(xy_control_node
-    ament_cmake
+add_executable(distance_controller_node
+    src/xy_distance_controller.cpp)
+target_link_libraries(distance_controller_node
+    armadillo
+)
+ament_target_dependencies(distance_controller_node
 	rclcpp
-	pid_lib
-	geometry_msgs
-	nav_msgs
-	tf2
-	tf2_geometry_msgs
+	ctrl_lib
 	)
 ########### END of xy_controller ############
 
 install(TARGETS
-  xy_control_node
+  distance_controller_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

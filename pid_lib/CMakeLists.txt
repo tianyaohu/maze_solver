@@ -15,6 +15,7 @@ include_directories(include)
 # define pid_lib library
 set(HEADER_FILES include/pid_lib/pid.hpp)
 add_library(pid_lib SHARED src/pid.cpp ${HEADER_FILES})
+target_link_libraries(pid_lib armadillo) 
 ament_target_dependencies(pid_lib
 	rclcpp
 )
