@@ -8,11 +8,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(pid_lib REQUIRED)
-find_package(tf2 REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
+find_package(ctrl_lib REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -29,22 +25,19 @@ endif()
 include_directories(PUBLIC include)
 
 ########### START of xy_controller ###########
-add_executable(z_control_node
-    src/z_pid_controller.cpp)
-target_link_libraries(z_control_node armadillo) 
-ament_target_dependencies(z_control_node
-    ament_cmake
+add_executable(turn_controller_node
+    src/z_turn_controller.cpp)
+target_link_libraries(turn_controller_node
+    armadillo
+)
+ament_target_dependencies(turn_controller_node
 	rclcpp
-	pid_lib
-	geometry_msgs
-	nav_msgs
-	tf2
-	tf2_geometry_msgs
+	ctrl_lib
 	)
 ########### END of xy_controller ############
 
 install(TARGETS
-  z_control_node
+  turn_controller_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

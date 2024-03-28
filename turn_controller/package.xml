@@ -10,11 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>geometry_msgs</depend>
-  <depend>nav_msgs</depend>
-  <depend>pid_lib</depend>
-  <depend>tf2</depend>
-  <depend>tf2_geometry_msgs</depend>
+  <depend>ctrl_lib</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

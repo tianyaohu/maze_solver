@@ -14,8 +14,8 @@ def generate_launch_description():
 
         Node(
             package='turn_controller',
-            executable='z_control_node',
-            name='z_control_node',
+            executable='turn_controller_node',
+            name='turn_controller_node',
             output='screen',
             parameters=[{'scene_num': LaunchConfiguration("scene_num")}])
     ])
