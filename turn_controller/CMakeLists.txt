@@ -24,7 +24,7 @@ endif()
 
 include_directories(PUBLIC include)
 
-########### START of xy_controller ###########
+########### START of turn_controller ###########
 add_executable(turn_controller_node
     src/z_turn_controller.cpp)
 target_link_libraries(turn_controller_node
@@ -34,7 +34,7 @@ ament_target_dependencies(turn_controller_node
 	rclcpp
 	ctrl_lib
 	)
-########### END of xy_controller ############
+########### END of turn_controller ############
 
 install(TARGETS
   turn_controller_node

@@ -1,16 +1,26 @@
-from launch import LaunchDescription
+import os
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument
+from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
+from ament_index_python.packages import get_package_share_directory
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
-    
-    return LaunchDescription([    
+    # Get the path to the other package's launch file
+    sim_pkg = get_package_share_directory('rosbot_xl_gazebo')
+    empty_world_launch_file = os.path.join(sim_pkg, 'launch', 'simulation.launch.py')
+    return LaunchDescription([
         DeclareLaunchArgument(
-            'scene_num',  # Ensure this name matches the LaunchConfiguration name used below
-            default_value='0',  # The default value should be a string
+            'scene_num',
+            default_value='0', 
             description='Scene number: 0 for simulation, 1 for real'
         ),
+
+        #Simulation
+        # IncludeLaunchDescription(
+        #         PythonLaunchDescriptionSource(empty_world_launch_file)
+        # ),
 
         Node(
             package='turn_controller',
