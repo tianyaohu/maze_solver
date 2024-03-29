@@ -46,9 +46,9 @@ void Controller::setTurnPID(int scene_num) {
     // init pid for Simulation
     ku = 15, tu = 8.5;
 
-    kp = 0.15 * ku;
-    ki = 0.005 * kp / (0.5 * tu);
-    kd = 0.125 * ku * tu;
+    kp = 0.12 * ku;
+    ki = 0.00 * kp / (0.5 * tu);
+    kd = 0.15 * ku * tu;
     break;
   // CyberWorld real robot lab @ the Construct
   case 1:
@@ -78,7 +78,7 @@ void Controller::setDistPID(int scene_num) {
                         // set kp, ki, kd
     kp = 0.125 * ku;
     ki = 0.001 * kp / (0.5 * tu);
-    kd = 0.075 * ku * tu;
+    kd = 0.1 * ku * tu;
     break;
   // CyberWorld the construct
   case 1:
@@ -103,8 +103,6 @@ inline arma::vec Controller::getCurXY() { return arma::vec({cur_x, cur_y}); }
 
 // ################ Calc Turn Errors ##################
 inline double Controller::normalize(double angle) {
-  // Function definition here
-  // Example implementation:
   const double TWO_PI = 2.0 * M_PI;
   angle = fmod(angle + M_PI, TWO_PI);
   if (angle < 0)
@@ -127,7 +125,7 @@ arma::vec Controller::calcMoveError(arma::vec abs_goal) {
 }
 
 arma::vec Controller::calcMoveSpeed(arma::vec error) {
-  double theta_error = atan2(error(1), error(0)) - cur_theta;
+  double theta_error = normalize(atan2(error(1), error(0)) - cur_theta);
 
   // Decide go forward or backward based on theta_error, aka if robot's head is
   // more facing the goal or tail
@@ -158,8 +156,9 @@ arma::vec Controller::calcMoveSpeed(arma::vec error) {
   // as abs(theta_error) gets greater, y approaches 0, aka first turn, before
   // moving forward
   auto y = [](double x) -> double {
-    // here y should be 1-abs(2/(1+e^-5x)-1)
-    return 1 - std::abs(2.0 / (1.0 + std::exp(-5.0 * x)) - 1.0);
+    double aggro = 5.0; // increase aggro does more aggressive lin speed control
+    // here y is 1-abs(2/(1+e^aggro*-x)-1)
+    return 1 - std::abs(2.0 / (1.0 + std::exp(aggro * -x)) - 1.0);
   };
 
   return arma::vec({y(theta_error) * forward_speed, 0, turn_speed});
@@ -207,11 +206,7 @@ void Controller::moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
   rclcpp::Rate rate(30); // this affects control behavior
   bool goalReached = false;
 
-  // reset pid to clear prev_time
-  //   xy_pid->reset();
-
   size_t errorIndex = 0; // To track the insertion point for new errors
-
   do {
     // process odoms
     rclcpp::spin_some(shared_from_this());
@@ -246,19 +241,19 @@ void Controller::moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
     this->publishSpeed(speeds);
 
     rate.sleep();
-
   } while (rclcpp::ok() && !goalReached);
 
   // stop after reaching abs_goal
   stop();
 
-  rclcpp::sleep_for(1s);
+  rclcpp::sleep_for(2s);
   // process odoms
   rclcpp::spin_some(shared_from_this());
 
   /// ############ TO BE DELETED ##############
   // get current pos and error
   arma::vec cur_pos = {cur_x, cur_y};
+  error = calc_error(abs_goal);
 
   // final pos after movement
   cur_pos.print("final arrival pos is ");
@@ -276,16 +271,29 @@ void Controller::makeDeltaTurn(const double &delta) {
       std::bind(&Controller::calcTurnSpeed, this, std::placeholders::_1));
 }
 
-void Controller::makeAbsMove(const arma::vec &delta) {
-  arma::vec abs_goal = delta;
-  //   arma::vec abs_goal = delta + getCurXY();
+void Controller::makeAbsTurn(const arma::vec &xy_goal) {
+  double delta = atan2(xy_goal(1) - cur_y, xy_goal(0) - cur_x);
 
-  cout << "abs_goal is " << abs_goal << endl;
+  xy_goal.print("turning towards ");
+  cout << "delta is " << delta << endl;
+  moveToMinimizeError(
+      delta, std::bind(&Controller::calcTurnError, this, std::placeholders::_1),
+      std::bind(&Controller::calcTurnSpeed, this, std::placeholders::_1));
+}
+
+void Controller::makeAbsMove(const arma::vec &xy_goal) {
+  cout << "xy_goal is " << xy_goal << endl;
   // Use std::bind to bind this pointer for the member function calcMoveError
   moveToMinimizeError(
-      abs_goal,
+      xy_goal,
       std::bind(&Controller::calcMoveError, this, std::placeholders::_1),
       std::bind(&Controller::calcMoveSpeed, this, std::placeholders::_1));
+}
+
+void Controller::makeDeltaMove(const arma::vec &delta) {
+  arma::vec xy_goal = getCurXY() + delta;
+  cout << "xy_goal is " << xy_goal << endl;
+  makeAbsMove(xy_goal);
 }
 
 // ################# CALLBACKS AND PUBS ###################
@@ -299,8 +307,7 @@ void Controller::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
   tf2::Quaternion quat;
   // Get qua from msg
   tf2::fromMsg(msg->pose.pose.orientation, quat);
-  tf2::Matrix3x3(quat).getRPY(roll, pitch, cur_theta); // ignoring roll and
-                                                       // pitch
+  tf2::Matrix3x3(quat).getRPY(roll, pitch, cur_theta); // ignoring roll & pitch
 }
 
 void Controller::publishSpeed(arma::vec speeds) {

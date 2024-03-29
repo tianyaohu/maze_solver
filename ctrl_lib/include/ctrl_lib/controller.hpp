@@ -21,7 +21,9 @@ public:
   //   bool turnForDegrees(double degree);
 
   void makeDeltaTurn(const double &delta);
-  void makeAbsMove(const arma::vec &delta);
+  void makeAbsTurn(const arma::vec &xy_goal);
+  void makeDeltaMove(const arma::vec &delta);
+  void makeAbsMove(const arma::vec &xy_goal);
 
 private:
   string topic_vel_;
