@@ -18,9 +18,9 @@ def generate_launch_description():
         ),
 
         #Simulation
-        IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(empty_world_launch_file)
-        ),
+        # IncludeLaunchDescription(
+        #         PythonLaunchDescriptionSource(empty_world_launch_file)
+        # ),
 
         Node(
             package='distance_controller',
