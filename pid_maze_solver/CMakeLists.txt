@@ -10,6 +10,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(ctrl_lib REQUIRED)
 
+# find_package(tf2_geometry_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
+
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -26,20 +31,37 @@ endif()
 include_directories(PUBLIC include)
 
 ########### START of maze_solver ###########
-add_executable(maze_solver_node
+add_executable(naive_maze_solver_node
     src/naive_maze_solver.cpp)
-target_link_libraries(maze_solver_node
+target_link_libraries(naive_maze_solver_node
     armadillo
+	${YAML_CPP_LIBRARIES}
 )
-ament_target_dependencies(maze_solver_node
+ament_target_dependencies(naive_maze_solver_node
 	rclcpp
 	ctrl_lib
+	geometry_msgs
+	yaml-cpp
 	)
 ########### END of maze_solver ############
 
+# We install the waypoints folder with all the waypoints files
+install(
+  DIRECTORY
+    waypoints
+  DESTINATION
+    share/${PROJECT_NAME}/
+)
+
 install(TARGETS
-  maze_solver_node
+  naive_maze_solver_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install the launch file
+install(DIRECTORY 
+	launch
+    DESTINATION share/${PROJECT_NAME}
 )
 
 ament_package()
