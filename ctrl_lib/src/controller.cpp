@@ -13,15 +13,14 @@ Controller::Controller(const string topic_vel_, const string topic_odom_,
       std::bind(&Controller::odomCallback, this, std::placeholders::_1));
 
   // Get scene number
-  int scene_num(getSceneNum());
+  setSceneNum();
 
   // Set PIDs
   setTurnPID(scene_num);
   setDistPID(scene_num);
 }
 
-int Controller::getSceneNum() {
-  int scene_num;
+void Controller::setSceneNum() {
   // Declare the parameter with a default value, in case it's not set
   this->declare_parameter<int>("scene_num", 0); // 0 is simulation
 
@@ -30,8 +29,6 @@ int Controller::getSceneNum() {
 
   // visualize the scene number in terminal
   RCLCPP_INFO(this->get_logger(), "scene_num is: %d", scene_num);
-
-  return scene_num; // Placeholder
 }
 
 void Controller::setTurnPID(int scene_num) {
@@ -82,12 +79,11 @@ void Controller::setDistPID(int scene_num) {
     break;
   // CyberWorld the construct
   case 1:
-    // THE FOLLOWING ARE LEGACY OF Z_CONTROLLER
-    ku = 5, tu = 3; // tu is in seconds
+    ku = 3, tu = 3; // tu is in seconds
 
-    kp = 0.1 * ku; // 0.15 is perfect turn in the real robot
-    ki = 0.0;      // 05 * kp / (0.5 * tu);
-    kd = 0.0;      // 18 * ku * tu; // starting from 0.125
+    kp = 0.69 * ku;
+    ki = 0.003 * kp / (0.5 * tu);
+    kd = 0.155 * ku * tu;
     break;
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid scene number: %d", scene_num);

@@ -25,6 +25,8 @@ public:
   void makeDeltaMove(const arma::vec &delta);
   void makeAbsMove(const arma::vec &xy_goal);
 
+  int scene_num;
+
 private:
   string topic_vel_;
   string topic_odom_;
@@ -38,7 +40,7 @@ private:
   // state info
   double cur_x, cur_y, cur_theta;
 
-  int getSceneNum();
+  void setSceneNum();
   void setTurnPID(int scene_num);
   void setDistPID(int scene_num);
 
