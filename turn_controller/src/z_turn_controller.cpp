@@ -13,14 +13,30 @@ int main(int argc, char *argv[]) {
   auto node = std::make_shared<Controller>("cmd_vel", "odometry/filtered",
                                            "turn_controller_node");
 
-  //   arma::vec D = {-M_PI / 2, M_PI / 2, M_PI, -M_PI};
+  arma::vec D = {-M_PI / 2, M_PI / 2, M_PI, -M_PI};
 
-  // define way_points here
-  arma::mat W = {{0.52, -1.34}, {1.37, -0.34}, {0.63, 0.55}};
+  // init way point matrix
+  arma::mat W;
+
+  cout << node->scene_num << " is scene num" << endl;
+  switch (node->scene_num) {
+  case 0: // Simulation
+    W = {{0.52, -1.34}, {1.37, -0.34}, {0.63, 0.55}};
+    break;
+
+  case 1: //
+    // TODO: Needs to be changed
+    W = {{0.33921066297736696, -0.3814937006760997},
+         {-0.7787546313519887, -0.8653341538274765}};
+    break;
+
+  default:
+    RCLCPP_ERROR(node->get_logger(), "Invalid scene number: %d",
+                 node->scene_num);
+  }
 
   // ensure there is odom to work with
   rclcpp::sleep_for(200ms);
-  //
   rclcpp::spin_some(node);
 
   // simple 90 180 turn  test
