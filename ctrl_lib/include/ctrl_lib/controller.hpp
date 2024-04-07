@@ -6,6 +6,7 @@
 #include "pid_lib/pid.hpp"
 #include <armadillo>
 #include <chrono>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -15,32 +16,37 @@ using namespace std::chrono_literals;
 
 class Controller : public rclcpp::Node {
 public:
-  Controller(const string topic_vel_, const string topic_odom_,
-             const string node_name);
-  bool moveForXY(double x, double y);
-  //   bool turnForDegrees(double degree);
+  Controller(const string &topic_vel, const string &topic_pose,
+             const string &node_name);
 
   void makeDeltaTurn(const double &delta);
   void makeAbsTurn(const arma::vec &xy_goal);
   void makeDeltaMove(const arma::vec &delta);
   void makeAbsMove(const arma::vec &xy_goal);
 
+  // getter methods
+  std::string getTopicPose() const { return topic_pose_; };
+
+  // Get cur pose
+  inline arma::vec getCurXY();
+
   int scene_num;
 
 private:
   string topic_vel_;
-  string topic_odom_;
+  string topic_pose_;
 
   std::unique_ptr<PID<double>> dist_pid;
   std::unique_ptr<PID<double>> turn_pid;
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr pub_vel_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;
+  rclcpp::SubscriptionBase::SharedPtr sub_pose_;
 
   // state info
   double cur_x, cur_y, cur_theta;
 
   void setSceneNum();
+  void setSceneNum(int scene_num);
   void setTurnPID(int scene_num);
   void setDistPID(int scene_num);
 
@@ -56,13 +62,15 @@ private:
   void moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
                            CommandFunc command_func);
 
-  //   template <typename T>
-  //   void moveToMinimizeError(T abs_goal, std::function<T(T)> calc_error,
-  //                            std::function<arma::vec(T)> calc_speed);
-  inline arma::vec getCurXY();
+  // For pose_callbacks to update position and orientation
+  void updatePositionAndOrientation(const geometry_msgs::msg::Pose &pose);
 
   // callbacks
   void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+  void amclCallback(
+      const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
+
+  // speed methods
   void publishSpeed(arma::vec speeds);
   void stop() { publishSpeed(arma::zeros<arma::vec>(3)); };
 };

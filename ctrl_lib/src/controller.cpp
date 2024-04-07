@@ -1,21 +1,30 @@
 #include "ctrl_lib/controller.hpp"
 
 // Constructor implementation
-Controller::Controller(const string topic_vel_, const string topic_odom_,
-                       const string node_name = "movement_controller")
-    : Node(node_name), topic_vel_(topic_vel_), topic_odom_(topic_odom_) {
+Controller::Controller(const std::string &topic_vel,
+                       const std::string &topic_pose,
+                       const std::string &node_name = "movement_controller")
+    : Node(node_name), topic_vel_(topic_vel), topic_pose_(topic_pose) {
 
-  // Init pub and sub
+  // Init pub
   pub_vel_ = this->create_publisher<geometry_msgs::msg::Twist>(topic_vel_, 10);
 
-  sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      topic_odom_, 10,
-      std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+  // Adaptive subscriber setup
+  if (topic_pose_.find("odom") != std::string::npos) {
+    // Setup for Odometry messages
+    sub_pose_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        topic_pose_, 10,
+        std::bind(&Controller::odomCallback, this, std::placeholders::_1));
+  } else if (topic_pose_.find("amcl") != std::string::npos) {
+    // Setup for PoseWithCovarianceStamped messages
+    sub_pose_ = this->create_subscription<
+        geometry_msgs::msg::PoseWithCovarianceStamped>(
+        topic_pose_, 10,
+        std::bind(&Controller::amclCallback, this, std::placeholders::_1));
+  }
 
-  // Get scene number
+  // Other initializations
   setSceneNum();
-
-  // Set PIDs
   setTurnPID(scene_num);
   setDistPID(scene_num);
 }
@@ -29,6 +38,27 @@ void Controller::setSceneNum() {
 
   // visualize the scene number in terminal
   RCLCPP_INFO(this->get_logger(), "scene_num is: %d", scene_num);
+}
+
+void Controller::setSceneNum(int new_scene_num) {
+  // Define a set containing all valid scene numbers
+  static const std::set<int> valid_scene_nums = {
+      0, 1}; // You can easily add more valid numbers here
+
+  // Check if the provided scene_num is in the set of valid scene numbers
+  if (valid_scene_nums.find(new_scene_num) != valid_scene_nums.end()) {
+    // If valid, set the scene number
+    scene_num = new_scene_num;
+    RCLCPP_INFO(this->get_logger(), "Manually set scene_num to: %d", scene_num);
+    // set PIDs accordingly
+    setTurnPID(scene_num);
+    setDistPID(scene_num);
+  } else {
+    // If invalid, log an error message
+    RCLCPP_ERROR(this->get_logger(),
+                 "Invalid scene_num: %d. Please provide a valid scene number.",
+                 new_scene_num);
+  }
 }
 
 void Controller::setTurnPID(int scene_num) {
@@ -51,9 +81,9 @@ void Controller::setTurnPID(int scene_num) {
   case 1:
     ku = 5, tu = 3.50; // tu is in seconds
 
-    kp = 0.27 * ku; // 0.15 is perfect turn in the real robot
-    ki = 0.005 * kp / (0.5 * tu);
-    kd = 0.018 * ku * tu; // starting from 0.125
+    kp = 0.16 * ku;
+    ki = 0.01 * kp / (0.5 * tu);
+    kd = 0.01 * ku * tu; // starting from 0.125
     break;
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid scene number: %d", scene_num);
@@ -79,11 +109,10 @@ void Controller::setDistPID(int scene_num) {
     break;
   // CyberWorld the construct
   case 1:
-    ku = 3, tu = 3; // tu is in seconds
-
-    kp = 0.69 * ku;
+    ku = 3, tu = 3; // tu in sec, when kp is 3, robot reach constant oscillation
+    kp = 0.45 * ku;
     ki = 0.003 * kp / (0.5 * tu);
-    kd = 0.155 * ku * tu;
+    kd = 0.1 * ku * tu;
     break;
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid scene number: %d", scene_num);
@@ -152,7 +181,8 @@ arma::vec Controller::calcMoveSpeed(arma::vec error) {
   // as abs(theta_error) gets greater, y approaches 0, aka first turn, before
   // moving forward
   auto y = [](double x) -> double {
-    double aggro = 5.0; // increase aggro does more aggressive lin speed control
+    double aggro = 7.0; // use to be 5.0 increase aggro does more aggressive
+                        // lin speed control
     // here y is 1-abs(2/(1+e^aggro*-x)-1)
     return 1 - std::abs(2.0 / (1.0 + std::exp(aggro * -x)) - 1.0);
   };
@@ -242,7 +272,7 @@ void Controller::moveToMinimizeError(T abs_goal, ErrorFunc calc_error,
   // stop after reaching abs_goal
   stop();
 
-  rclcpp::sleep_for(2s);
+  rclcpp::sleep_for(1s);
   // process odoms
   rclcpp::spin_some(shared_from_this());
 
@@ -268,6 +298,12 @@ void Controller::makeDeltaTurn(const double &delta) {
 }
 
 void Controller::makeAbsTurn(const arma::vec &xy_goal) {
+  cout << "cur_x is " << cur_x << endl;
+  cout << "cur_y is " << cur_y << endl;
+
+  cout << "goal y is " << xy_goal(1) << endl;
+  cout << "goal x is " << xy_goal(0) << endl;
+
   double delta = atan2(xy_goal(1) - cur_y, xy_goal(0) - cur_x);
 
   xy_goal.print("turning towards ");
@@ -293,17 +329,31 @@ void Controller::makeDeltaMove(const arma::vec &delta) {
 }
 
 // ################# CALLBACKS AND PUBS ###################
-void Controller::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
-  // Update current state from odometry message
-  cur_x = msg->pose.pose.position.x;
-  cur_y = msg->pose.pose.position.y;
+void Controller::updatePositionAndOrientation(
+    const geometry_msgs::msg::Pose &pose) {
+  // Update current state from pose
+  cur_x = pose.position.x;
+  cur_y = pose.position.y;
 
-  double roll, pitch; // roll pitch is not used here
   // Convert quaternion to Euler angles
+  double roll, pitch; // These variables are not used beyond conversion
   tf2::Quaternion quat;
-  // Get qua from msg
-  tf2::fromMsg(msg->pose.pose.orientation, quat);
-  tf2::Matrix3x3(quat).getRPY(roll, pitch, cur_theta); // ignoring roll & pitch
+  tf2::fromMsg(pose.orientation, quat);
+  tf2::Matrix3x3 m(quat);
+  m.getRPY(
+      roll, pitch,
+      cur_theta); // Extracting only the yaw (theta) as roll & pitch are ignored
+}
+
+void Controller::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
+  // Directly pass the pose to the new method
+  updatePositionAndOrientation(msg->pose.pose);
+}
+
+void Controller::amclCallback(
+    const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
+  // The PoseWithCovarianceStamped message has its pose directly accessible
+  updatePositionAndOrientation(msg->pose.pose);
 }
 
 void Controller::publishSpeed(arma::vec speeds) {
