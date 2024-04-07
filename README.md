@@ -26,6 +26,8 @@ colcon build; source install/setup.bash
 ros2 launch rosbot_xl_gazebo simulation.launch.py
 ```
 
+![Start Sim](media_lib/launch_simulation.gif)
+
 ## 🧭 Start Mapping
 ```bash
 #run Teleop for key board control
@@ -40,13 +42,13 @@ cd ~/ros2_ws
 colcon build; source install/setup.bash
 ros2 launch my_slam_toolbox_pkg mapping.launch.py
 ```
-
-# MAPPING GIF TO BE ADDED, RVIZ, Simulation
-
 ```bash
 #To Save Map
 ros2 service call /slam_toolbox/save_map slam_toolbox/srv/SaveMap "{name: {data: 'your_map_name'}}"
 ```
+
+![Mapping](media_lib/mapping.gif)
+
 
 ## 📍 Start AMCL Localization
 ```bash
@@ -62,8 +64,7 @@ ros2 launch localization real_localization.launch.py
 
 Please use the Pose Estimation tool in Rviz and localize the robot somewhat aaccurately. This initialization heavily influence whether the robot can solve maze via way_points, this approach is rather naive and brittle.
 
-# GIF IMAGE OF POSE ESTIMATION HERE, 
-
+![Mapping](media_lib/manual_pose_estimation.gif)
 
 
 <b>If using waypoint to solve maze</b>
@@ -84,8 +85,8 @@ Once the your waypoints are saved as yaml files within `maze_solver\pid_maze_sol
 # reverse_solve if false, follows the yaml file order; true reverse the order
 ros2 launch pid_maze_solver naive_maze_solver.launch.py scene_num:=0 reverse_solve:=false
 ```
+![Simulation Forward Solve](media_lib/sim_forward_2x.gif)
 
 <strong style="color: green;"> The robot can solve maze right in the middle of the maze. As long as it is somewhere along the solution path, the robot will try to move to the closest waypoint and solve the maze from there. FYI: this doesn't work if there is an obstable inbetween the robot and waypoint.  </strong><strong style="color: red;">This is a naive maze solver, it does NOT have any obstacle avoidance.</strong>
 
-
-# Maze solve Video HERE
+![Simulation Forward Solve](media_lib/mid_solve.gif)
