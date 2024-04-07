@@ -1,0 +1,28 @@
+slam_toolbox:
+  ros__parameters:
+    # Set the robot base frame. Usually base_link or base_footprint
+    base_frame: base_link
+
+    # Set the odometry frame
+    odom_frame: odom
+
+    # Set the map frame
+    map_frame: map
+
+    # Set the topic for laser scan data
+    scan_topic: /scan
+
+    # Set the laser sensor model
+    laser_model:
+      # Laser sensor type (e.g. SICK, RPLIDAR, etc)
+      laser_model_type: 2D_LIDAR
+      # Max range for laser sensor (e.g. 20.0 for 20m)
+      laser_max_range: 20.0
+      # Min range for laser sensor (e.g. 0.1 for 10cm)
+      laser_min_range: 0.1
+      # Angle increment between laser readings (e.g. 0.005 for 0.5 degrees)
+      angle_increment: 0.005
+
+    # Set the map resolution (in meters per grid cell)
+    resolution: 0.01
+
