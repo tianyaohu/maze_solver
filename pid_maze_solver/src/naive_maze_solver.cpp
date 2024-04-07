@@ -1,22 +1,23 @@
-#include "ctrl_lib/controller.hpp" // Adjust this include path to match your setup
+#include "ament_index_cpp/get_package_share_directory.hpp"
+#include "ctrl_lib/controller.hpp"
+#include "geometry_msgs/msg/point.hpp"
+#include "rclcpp/executors/multi_threaded_executor.hpp"
+#include "yaml-cpp/yaml.h"
 #include <armadillo>
+#include <cmath>
+#include <filesystem>
 #include <iostream>
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <streambuf>
-
-#include "ament_index_cpp/get_package_share_directory.hpp" // Include this header
-#include "geometry_msgs/msg/point.hpp"
-#include "yaml-cpp/yaml.h" // include the yaml library
-#include <filesystem>      // Include the filesystem library
+#include <thread>
 
 using namespace std;
 
-// The class init, we add a scene input and a call to a new function
 class MazeSolver : public Controller {
 public:
   // readPointsFromYAML() Constructor for the MazeSolver class
-  MazeSolver()
-      : Controller("cmd_vel", "odometry/filtered", "naive_maze_solver_node") {
+  MazeSolver() : Controller("cmd_vel", "amcl_pose", "naive_maze_solver_node") {
     // Declare and get the reverse_solve parameter
     this->declare_parameter<bool>("reverse_solve", false);
     this->get_parameter("reverse_solve", reverse_solve_);
@@ -32,9 +33,25 @@ public:
       return;
     }
 
-    arma::mat temp_pts = reverse_solve_ ? arma::flipud(way_pts_) : way_pts_;
+    // check if topic_pose is amcl, do some rotation for better pose estimation
+    // and force new message from amcl (amcl only updates passively if there are
+    // movements) is the pose source.
+    if (getTopicPose().find("amcl") != std::string::npos) {
+      updateAmclPoseWithRotation();
+    }
 
-    temp_pts.each_row([this](const arma::rowvec &goal) {
+    // Future TODO: instead of assuming always start from the very begining of
+    // waypoint matrix, find the closest pt to the current pose and start from
+    // that point to either end of the maze.
+
+    // check if reverse solve
+
+    cout << "before getting way points" << endl;
+
+    arma::mat way_pts = getWayPoints();
+    cout << "after getting way points" << endl;
+
+    way_pts.each_row([this](const arma::rowvec &goal) {
       RCLCPP_INFO(this->get_logger(), "Turning Towards [%f, %f]", goal(0),
                   goal(1));
       this->makeAbsTurn(goal.t());
@@ -45,6 +62,67 @@ public:
   }
 
 private:
+  arma::mat getWayPoints() {
+    // Compute the current position into an Armadillo row vector
+    arma::rowvec current_pos = getCurXY().t();
+
+    cout << "before distance" << endl;
+
+    cout << "test " << way_pts_.each_row() - current_pos << endl;
+
+    // Compute distances from current position to all waypoints
+    arma::vec distances = arma::sqrt(
+        arma::sum(arma::square(way_pts_.each_row() - current_pos), 1));
+
+    cout << "after distance" << endl;
+
+    distances.print("this is distance");
+
+    // Find the index of the closest waypoint
+    arma::uword closestIndex;
+    distances.min(closestIndex); // This overload of min() returns the index of
+                                 // the min value
+
+    // visualize in terminal starting with nth index
+    RCLCPP_INFO(this->get_logger(),
+                "Starting from the waypoint at index: %llu (closest to current "
+                "position)",
+                static_cast<unsigned long long>(closestIndex));
+
+    cout << "1" << endl;
+
+    // Select waypoints starting from the closest, adjusting for reverse solving
+    arma::mat selected_pts;
+    if (reverse_solve_) {
+      cout << "2" << endl;
+
+      // Include waypoints from the closest to the start, in reverse order
+      if (closestIndex > 0) {
+        selected_pts = arma::flipud(way_pts_.rows(0, closestIndex));
+      }
+      cout << "3" << endl;
+
+    } else {
+      cout << "4" << endl;
+
+      // For normal solving, include waypoints from the closest to the end
+      selected_pts = way_pts_.rows(closestIndex, way_pts_.n_rows - 1);
+      cout << "5" << endl;
+    }
+
+    return selected_pts;
+  }
+
+  void updateAmclPoseWithRotation() {
+    RCLCPP_INFO(this->get_logger(), "Inducing movement for AMCL update...");
+
+    // Rotate left a small amount (example: 10 degrees, converted to radians)
+    this->makeDeltaTurn(M_PI / 8);
+    this->makeDeltaTurn(-M_PI / 4);
+
+    RCLCPP_INFO(this->get_logger(), "Movement induced for AMCL update.");
+  }
+
   void readPointsFromYAML() {
     // Get the package's share directory and append the YAML file path
     std::string package_share_directory =
