@@ -10,8 +10,7 @@ int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
   // init node
-  auto node = std::make_shared<Controller>("cmd_vel", "odometry/filtered",
-                                           "turn_controller_node");
+  auto node;
 
   arma::vec D = {-M_PI / 2, M_PI / 2, M_PI, -M_PI};
 
@@ -21,11 +20,18 @@ int main(int argc, char *argv[]) {
   cout << node->scene_num << " is scene num" << endl;
   switch (node->scene_num) {
   case 0: // Simulation
+          // init node
+    node = std::make_shared<Controller>("cmd_vel", "odometry/filtered",
+                                        "turn_controller_node");
+    // init turn target way points
     W = {{0.52, -1.34}, {1.37, -0.34}, {0.63, 0.55}};
     break;
 
-  case 1: //
-    // TODO: Needs to be changed
+  case 1: // the Construct CyberLab
+    // init node
+    node = std::make_shared<Controller>("cmd_vel", "amcl_pose",
+                                        "turn_controller_node");
+    // init turn target way points
     W = {{0.33921066297736696, -0.3814937006760997},
          {-0.7787546313519887, -0.8653341538274765}};
     break;
