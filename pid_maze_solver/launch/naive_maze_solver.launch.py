@@ -9,7 +9,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 def generate_launch_description():
     # Get the path to the other package's launch file
     sim_pkg = get_package_share_directory('rosbot_xl_gazebo')
-    empty_world_launch_file = os.path.join(sim_pkg, 'launch', 'empty_simulation.launch.py')
+
     return LaunchDescription([    
         DeclareLaunchArgument(
             'scene_num',
@@ -21,6 +21,12 @@ def generate_launch_description():
             'reverse_solve',
             default_value='false', 
             description='If true, solve maze from end to start; if false, solve from start to end'
+        ),
+
+        DeclareLaunchArgument(
+            'topic_pose',
+            default_value='odometry/filtered', 
+            description='the topic to subscribe to for pose update, the message must contain type geometry_msgs/Pose pose'
         ),
 
         #Simulation
