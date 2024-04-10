@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
 
   // init node
-  auto node;
+  std::shared_ptr<Controller> node;
 
   arma::vec D = {-M_PI / 2, M_PI / 2, M_PI, -M_PI};
 
