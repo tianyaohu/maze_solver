@@ -6,9 +6,33 @@ Controller::Controller(const std::string &topic_vel,
                        const std::string &node_name = "movement_controller")
     : Node(node_name), topic_vel_(topic_vel), topic_pose_(topic_pose) {
 
+  // set subscriber for pose update, any topic with pose msg attribute
+  setPoseSubscription();
+
   // Init pub
   pub_vel_ = this->create_publisher<geometry_msgs::msg::Twist>(topic_vel_, 10);
 
+  // Other initializations
+  setSceneNum();
+  setTurnPID(scene_num);
+  setDistPID(scene_num);
+}
+
+void Controller::setTopicPose() {
+  // Declare the parameter with a default value with odom/filtered
+  this->declare_parameter<std::string>("topic_pose",
+                                       "odometry/filtered"); // 0 is simulation
+
+  // store topic_pose to local_variable
+  this->get_parameter("topic_pose", topic_pose_);
+
+  // visualize the scene number in terminal
+  RCLCPP_INFO(this->get_logger(), "topic_pose is: %s", topic_pose_.c_str());
+}
+
+void Controller::setPoseSubscription() {
+  // get and set topic_pose of local variable
+  setTopicPose();
   // Adaptive subscriber setup
   if (topic_pose_.find("odom") != std::string::npos) {
     // Setup for Odometry messages
@@ -22,11 +46,6 @@ Controller::Controller(const std::string &topic_vel,
         topic_pose_, 10,
         std::bind(&Controller::amclCallback, this, std::placeholders::_1));
   }
-
-  // Other initializations
-  setSceneNum();
-  setTurnPID(scene_num);
-  setDistPID(scene_num);
 }
 
 void Controller::setSceneNum() {

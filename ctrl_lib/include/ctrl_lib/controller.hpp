@@ -45,6 +45,10 @@ private:
   // state info
   double cur_x, cur_y, cur_theta;
 
+  // init subscriber for localization (odom || amcl_pose)
+  void setTopicPose();
+  void setPoseSubscription();
+
   void setSceneNum();
   void setSceneNum(int scene_num);
   void setTurnPID(int scene_num);
