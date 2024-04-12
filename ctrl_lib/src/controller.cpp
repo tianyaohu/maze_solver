@@ -19,13 +19,10 @@ Controller::Controller(const std::string &topic_vel,
 }
 
 void Controller::setTopicPose() {
-  // Declare the parameter with a default value with odom/filtered
-  this->declare_parameter<std::string>("topic_pose",
-                                       "odometry/filtered"); // 0 is simulation
-
-  // store topic_pose to local_variable
-  this->get_parameter("topic_pose", topic_pose_);
-
+  // Check if the parameter is already set
+  if (!this->has_parameter("topic_pose")) {
+    this->declare_parameter<std::string>("topic_pose", "odometry/filtered");
+  }
   // visualize the scene number in terminal
   RCLCPP_INFO(this->get_logger(), "topic_pose is: %s", topic_pose_.c_str());
 }
@@ -200,8 +197,8 @@ arma::vec Controller::calcMoveSpeed(arma::vec error) {
   // as abs(theta_error) gets greater, y approaches 0, aka first turn, before
   // moving forward
   auto y = [](double x) -> double {
-    double aggro = 7.0; // use to be 5.0 increase aggro does more aggressive
-                        // lin speed control
+    double aggro = 10.0; // use to be 5.0 increase aggro does more aggressive
+                         // lin speed control
     // here y is 1-abs(2/(1+e^aggro*-x)-1)
     return 1 - std::abs(2.0 / (1.0 + std::exp(aggro * -x)) - 1.0);
   };
