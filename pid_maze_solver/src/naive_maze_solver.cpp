@@ -18,14 +18,10 @@ class MazeSolver : public Controller {
 public:
   // readPointsFromYAML() Constructor for the MazeSolver class
   MazeSolver() : Controller("cmd_vel", "amcl_pose", "naive_maze_solver_node") {
-    // Declare and get the reverse_solve parameter
     this->declare_parameter<bool>("reverse_solve", false);
     this->get_parameter("reverse_solve", reverse_solve_);
-
-    // Read points from YAML file and store them in way_pts_
     readPointsFromYAML();
   }
-
   void solveMaze() {
     if (way_pts_.empty()) {
       RCLCPP_ERROR(this->get_logger(),
@@ -33,23 +29,20 @@ public:
       return;
     }
 
-    // check if topic_pose is amcl, do some rotation for better pose estimation
-    // and force new message from amcl (amcl only updates passively if there are
-    // movements) is the pose source.
+    std::cout << "Does topic pose include 'amcl'? "
+              << (getTopicPose().find("amcl") != std::string::npos)
+              << std::endl;
+
     if (getTopicPose().find("amcl") != std::string::npos) {
       updateAmclPoseWithRotation();
     }
 
-    // Future TODO: instead of assuming always start from the very begining of
-    // waypoint matrix, find the closest pt to the current pose and start from
-    // that point to either end of the maze.
-
-    // check if reverse solve
-
-    cout << "before getting way points" << endl;
-
     arma::mat way_pts = getWayPoints();
-    cout << "after getting way points" << endl;
+    if (way_pts.empty()) {
+      RCLCPP_ERROR(this->get_logger(),
+                   "No valid waypoints determined for navigation.");
+      return;
+    }
 
     way_pts.each_row([this](const arma::rowvec &goal) {
       RCLCPP_INFO(this->get_logger(), "Turning Towards [%f, %f]", goal(0),
@@ -63,60 +56,35 @@ public:
 
 private:
   arma::mat getWayPoints() {
-    // Compute the current position into an Armadillo row vector
     arma::rowvec current_pos = getCurXY().t();
 
-    cout << "before distance" << endl;
+    std::cout << "current_pose is " << current_pos << std::endl;
 
-    cout << "test " << way_pts_.each_row() - current_pos << endl;
+    arma::mat distance_diffs = way_pts_.each_row() - current_pos;
+    arma::vec distances =
+        arma::sqrt(arma::sum(arma::square(distance_diffs), 1));
+    distances.print("Distances:");
 
-    // Compute distances from current position to all waypoints
-    arma::vec distances = arma::sqrt(
-        arma::sum(arma::square(way_pts_.each_row() - current_pos), 1));
-
-    cout << "after distance" << endl;
-
-    distances.print("this is distance");
-
-    // Find the index of the closest waypoint
     arma::uword closestIndex;
-    distances.min(closestIndex); // This overload of min() returns the index of
-                                 // the min value
+    distances.min(closestIndex);
 
-    // visualize in terminal starting with nth index
     RCLCPP_INFO(this->get_logger(),
                 "Starting from the waypoint at index: %llu (closest to current "
                 "position)",
                 static_cast<unsigned long long>(closestIndex));
 
-    cout << "1" << endl;
-
-    // Select waypoints starting from the closest, adjusting for reverse solving
-    arma::mat selected_pts;
     if (reverse_solve_) {
-      cout << "2" << endl;
-
-      // Include waypoints from the closest to the start, in reverse order
-      if (closestIndex > 0) {
-        selected_pts = arma::flipud(way_pts_.rows(0, closestIndex));
-      }
-      cout << "3" << endl;
-
+      return arma::mat(arma::flipud(way_pts_.rows(0, closestIndex)));
     } else {
-      cout << "4" << endl;
-
-      // For normal solving, include waypoints from the closest to the end
-      selected_pts = way_pts_.rows(closestIndex, way_pts_.n_rows - 1);
-      cout << "5" << endl;
+      return way_pts_.rows(closestIndex, way_pts_.n_rows - 1);
     }
-
-    return selected_pts;
   }
 
   void updateAmclPoseWithRotation() {
     RCLCPP_INFO(this->get_logger(), "Inducing movement for AMCL update...");
 
     // Rotate left a small amount (example: 10 degrees, converted to radians)
+    this->makeDeltaTurn(M_PI / 8);
     this->makeDeltaTurn(M_PI / 8);
     this->makeDeltaTurn(-M_PI / 4);
 
@@ -160,7 +128,6 @@ private:
     }
   }
 
-  // Assuming YAML and other necessary libraries are included
   arma::mat readPtMatrixFromYAML(const YAML::Node &config) {
     if (!config["points"]) {
       RCLCPP_ERROR(this->get_logger(), "Missing 'points' key in YAML file.");
@@ -168,25 +135,19 @@ private:
     }
 
     arma::mat pointsMatrix;
-    int numValidPoints = 0; // Track the number of valid points
-
+    int numValidPoints = 0;
     for (const auto &point : config["points"]) {
       if (point.IsSequence() && point.size() == 2) {
         numValidPoints++;
-      } else {
-        RCLCPP_WARN(this->get_logger(), "Skipping invalid point format.");
       }
     }
 
-    pointsMatrix.set_size(numValidPoints,
-                          2); // Allocate matrix to fit valid points only
+    pointsMatrix.set_size(numValidPoints, 2);
     int idx = 0;
     for (const auto &point : config["points"]) {
       if (point.IsSequence() && point.size() == 2) {
-        float x = point[0].as<float>();
-        float y = point[1].as<float>();
-        pointsMatrix(idx, 0) = x;
-        pointsMatrix(idx, 1) = y;
+        pointsMatrix(idx, 0) = point[0].as<float>();
+        pointsMatrix(idx, 1) = point[1].as<float>();
         idx++;
       }
     }
