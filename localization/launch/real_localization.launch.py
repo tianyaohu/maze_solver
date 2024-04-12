@@ -30,6 +30,8 @@ def generate_launch_description():
         arguments=['--frame-id', 'map', '--child-frame-id', 'odom']
     )
 
+    
+
     # laser_static_tf_pub = Node(
     #     package='tf2_ros',
     #     executable='static_transform_publisher',

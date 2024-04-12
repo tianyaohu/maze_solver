@@ -1,4 +1,4 @@
-image: sim_map_backup.pgm
+image: sim_map.pgm
 mode: trinary
 resolution: 0.01
 origin: [-0.227, -1.66, 0]
