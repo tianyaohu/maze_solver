@@ -19,12 +19,16 @@ Controller::Controller(const std::string &topic_vel,
 }
 
 void Controller::setTopicPose() {
-  // Check if the parameter is already set
-  if (!this->has_parameter("topic_pose")) {
-    this->declare_parameter<std::string>("topic_pose", "odometry/filtered");
+  this->declare_parameter<std::string>("topic_pose", "odometry/filtered");
+  if (this->get_parameter("topic_pose", topic_pose_)) {
+    RCLCPP_INFO(this->get_logger(),
+                "topic_pose is successfully retrieved and set: %s",
+                topic_pose_.c_str());
+  } else {
+    RCLCPP_ERROR(this->get_logger(),
+                 "Failed to get 'topic_pose' parameter, using default: %s",
+                 topic_pose_.c_str());
   }
-  // visualize the scene number in terminal
-  RCLCPP_INFO(this->get_logger(), "topic_pose is: %s", topic_pose_.c_str());
 }
 
 void Controller::setPoseSubscription() {
@@ -49,7 +53,7 @@ void Controller::setSceneNum() {
   // Declare the parameter with a default value, in case it's not set
   this->declare_parameter<int>("scene_num", 0); // 0 is simulation
 
-  // print to see if parameter Setting workedf
+  // set scene num
   this->get_parameter("scene_num", scene_num);
 
   // visualize the scene number in terminal

@@ -17,7 +17,8 @@ using namespace std;
 class MazeSolver : public Controller {
 public:
   // readPointsFromYAML() Constructor for the MazeSolver class
-  MazeSolver() : Controller("cmd_vel", "amcl_pose", "naive_maze_solver_node") {
+  MazeSolver()
+      : Controller("cmd_vel", "odom/filtered", "naive_maze_solver_node") {
     this->declare_parameter<bool>("reverse_solve", false);
     this->get_parameter("reverse_solve", reverse_solve_);
     readPointsFromYAML();
