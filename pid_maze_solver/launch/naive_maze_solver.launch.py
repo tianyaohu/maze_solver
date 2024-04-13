@@ -1,15 +1,10 @@
-import os
 from launch_ros.actions import Node
 from launch import LaunchDescription
 from launch.substitutions import LaunchConfiguration
-from ament_index_python.packages import get_package_share_directory
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
 
 def generate_launch_description():
     # Get the path to the other package's launch file
-    sim_pkg = get_package_share_directory('rosbot_xl_gazebo')
-
     return LaunchDescription([    
         DeclareLaunchArgument(
             'scene_num',
@@ -29,11 +24,6 @@ def generate_launch_description():
             description='the topic to subscribe to for pose update, the message must contain type geometry_msgs/Pose pose'
         ),
 
-        #Simulation
-        # IncludeLaunchDescription(
-        #         PythonLaunchDescriptionSource(empty_world_launch_file)
-        # ),
-
         Node(
             package='pid_maze_solver',
             executable='naive_maze_solver_node',
@@ -41,6 +31,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'scene_num': LaunchConfiguration("scene_num"),
-                'reverse_solve': LaunchConfiguration("reverse_solve")  
+                'reverse_solve': LaunchConfiguration("reverse_solve"),
+                'topic_pose': LaunchConfiguration("topic_pose")   
             }])
     ])

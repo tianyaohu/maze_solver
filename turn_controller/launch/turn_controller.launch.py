@@ -17,6 +17,12 @@ def generate_launch_description():
             description='Scene number: 0 for simulation, 1 for real'
         ),
 
+        DeclareLaunchArgument(
+            'topic_pose',
+            default_value="amcl_pose", 
+            description='the topic to subscribe to for pose update, the message must contain type geometry_msgs/Pose pose'
+        ),
+
         #Simulation
         # IncludeLaunchDescription(
         #         PythonLaunchDescriptionSource(empty_world_launch_file)
@@ -27,5 +33,8 @@ def generate_launch_description():
             executable='turn_controller_node',
             name='turn_controller_node',
             output='screen',
-            parameters=[{'scene_num': LaunchConfiguration("scene_num")}])
+            parameters=[{ 
+                'scene_num': LaunchConfiguration("scene_num"),
+                'topic_pose': LaunchConfiguration("topic_pose")   
+            }])
     ])

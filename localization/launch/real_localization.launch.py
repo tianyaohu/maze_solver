@@ -6,7 +6,7 @@ from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, TimerAction
 from launch_ros.actions import Node
-from launch.event_handlers import OnProcessExit, OnProcessStart
+from launch.event_handlers import OnProcessStart
 
 def generate_launch_description():
     nav2_yaml = os.path.join(get_package_share_directory('localization'), 'config', 'real_amcl.yaml')
@@ -29,17 +29,6 @@ def generate_launch_description():
         emulate_tty=True,
         arguments=['--frame-id', 'map', '--child-frame-id', 'odom']
     )
-
-    
-
-    # laser_static_tf_pub = Node(
-    #     package='tf2_ros',
-    #     executable='static_transform_publisher',
-    #     name='static_transform_publisher_base_link_2_foot_print',
-    #     output='screen',
-    #     emulate_tty=True,
-    #     arguments=['--frame-id', 'map', '--child-frame-id', 'odom']
-    # )
 
     map_server_node = Node(
         package='nav2_map_server',
@@ -108,6 +97,5 @@ def generate_launch_description():
 
         rviz_node, 
         map_static_tf_pub,
-        # laser_static_tf_pub
 
     ])
